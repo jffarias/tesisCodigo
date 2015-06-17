@@ -3,6 +3,7 @@
 /*Codigo hecho basandose en la pagina principal*/
 /*http://php.net/manual/es/index.php*/
 /*http://php.net/manual/es/sockets.examples.php*/
+/*http://php.net/manual/es/function.file-put-contents.php*/
 /*Jesus Flor Farias @Iesous_Flor*/
 
 
@@ -19,7 +20,9 @@ ob_implicit_flush();
 
 // direccion y puerto de escucha de este server.
 //$address = '192.168.1.81';
-$address = 'mi direccion ip';
+//cubiculo
+$address = '192.168.123.103';
+//$address = 'mi direccion ip';
 $port = 10000;
 
 // resource socket_create ( int $domain , int $type , int $protocol )
@@ -41,7 +44,7 @@ if (socket_listen($sock, 5) === false) {
 
 //clients array, inicialmente vacio
 $clients = array();
-
+$talkback = NULL;
 do {
     $read = array();  // un arreglo vacio 
     $read[] = $sock;    // agrega el socket de escucha al inicio del arreglo
@@ -71,11 +74,17 @@ do {
             break;
         }
         $clients[] = $msgsock;  // el socket nuevo se agrega a la lista de clientes
-        $key = array_keys($clients, $msgsock);   // y se obtiene su indice en el arreglo
+
+        //array array_keys ( array $array [, mixed $search_value [, bool $strict = false ]] )
+        // Devuelve todas las claves de un array o un subconjunto de claves de un array
+        $key = array_keys($clients, $msgsock); 
+
         /* Enviar instrucciones. */
         $msg = "\nBienvenido al Servidor De Prueba de PHP. \r\n" .
         "Usted es el cliente numero: {$key[0]}\r\n" .
-        "Para salir, escriba 'quit'. Para cerrar el servidor escriba 'shutdown'.\r\n";
+        " Para salir, escriba '!quit'.\r\n".
+        " Para cerrar el servidor escriba '!shutdown'.\r\n".
+        " Para manual de comandos escriba '!man'.\r\n";
         
         //Escribir en un socket
         //int socket_write ( resource $socket , string $buffer [, int $length = 0 ] )
@@ -93,6 +102,7 @@ do {
    
     // Handle Input
     $all_read_messages=array();
+
     foreach ($clients as $key => $client) { // obtenemos el valor y la clave 
         //Comprueba si un valor existe en un array
         //bool in_array ( mixed $needle , array $haystack [, bool $strict = FALSE ] )      
@@ -107,30 +117,62 @@ do {
             if (!$buf = trim($buf)) {
                 continue;
             }
-            if ($buf == 'quit') {
+            if ($buf == '!quit') {
                 //unset — Destruye una variable especificada
                 //void unset ( mixed $var [, mixed $... ] )
                 unset($clients[$key]);
                 socket_close($client);
                 break;
             }
-            if ($buf == 'shutdown') {
+            if ($buf == '!shutdown') {
                 socket_close($client);
                 break 2;
             }
-    	    $all_read_messages[]="$key: $buf\r\n";
+            if($buf =='!man'){
+                /* Enviar instrucciones. */
+                $msg ="\r\n Para salir, escriba '!quit'.\r\n".
+                " Para cerrar el servidor escriba '!shutdown'.\r\n".
+                " Para manual de comandos escriba '!man'.\r\n".
+                " Para obtener los ultimos n mensajes escriba '!n',\r\n".
+                " donde n son los ultimos mensajes en numero entero.\r\n";
+                
+                //Escribir en un socket
+                //int socket_write ( resource $socket , string $buffer [, int $length = 0 ] )
+                socket_write($msgsock, $msg, strlen($msg));
+                $buf=":)";
+            }
+    	    $all_read_messages[]="\n$key: $buf\r\n";
             //$talkback = "\r\nCliente {$key}: $buf\r\n";
             //socket_write($client, $talkback, strlen($talkback));
             echo "Cliente {$key}: $buf\n";
+
+            //enviamos la cadena recibida a todos los clientes.
+            //foreach($clients as $key => $cliente){
+                //socket_write($cliente, $talkback, strlen($talkback));
+            //}
+            //file_put_contents — Escribe una cadena a un fichero
+            //int file_put_contents ( string $filename , mixed $data [, int $flags = 0 [, resource $context ]] )
+            $fichero = 'chat.txt';
+            // La nueva persona a añdir al fichero
+            $cadena = "Cliente {$key}: $buf\n";
+            // Escribir los contenidos en el fichero,
+            // usando la bandera FILE_APPEND para añadir el contenido al final del fichero
+            // y la bandera LOCK_EX para evitar que cualquiera escriba en el fichero al mismo tiempo
+            file_put_contents($fichero, $cadena, FILE_APPEND | LOCK_EX);
         }
     }
     //enviamos la cadena recibida a todos los clientes.
     foreach($clients as $key => $cliente){
         foreach($all_read_messages as $keydummy => $mensaje){
 		  socket_write($cliente, $mensaje, strlen($mensaje));
-	   }
+        //socket_write($cliente, $talkback, strlen($talkback));
+	    }
     }
 } while (true);
 
 socket_close($sock);
+
+//programacion faltante:
+//Colocar un nombre de usuario.
+//enviar cadena de que un cliente termino session.
 ?>
